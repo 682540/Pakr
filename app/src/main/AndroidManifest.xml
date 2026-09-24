@@ -8,7 +8,16 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+
+    <!-- ===== 保活增强：通知 / 前台服务 / 电池白名单 ===== -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
     <application
+        android:name=".PakrApp"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="{{APP_NAME}}"
@@ -44,7 +53,18 @@
             android:screenOrientation="portrait"
             android:windowLayoutInDisplayCutoutMode="shortEdges"
             android:windowSoftInputMode="adjustNothing" />
-            <provider
+
+        <!-- ===== 保活增强：常驻前台服务 ===== -->
+        <service
+            android:name=".KeepAliveService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="保持网页连接以接收即时消息通知" />
+        </service>
+
+        <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
             android:exported="false"

@@ -21,6 +21,7 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.ImageView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
@@ -39,9 +40,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var overlay: View
     private lateinit var spinner: IOSSpinnerView
     private lateinit var loadingText: TextView
+    private lateinit var overlayLogo: ImageView
 
     private val handler = Handler(Looper.getMainLooper())
     private var overlayVisible = false
+    private var coverFirstLoad = true
 
     private val dotsFrames = arrayOf("", ".", "..", "...")
     private var dotsIndex = 0
@@ -98,6 +101,7 @@ class MainActivity : AppCompatActivity() {
         overlay     = findViewById(R.id.overlay)
         spinner     = findViewById(R.id.spinner)
         loadingText = findViewById(R.id.loadingText)
+        overlayLogo = findViewById(R.id.overlayLogo)
         swipeRefresh = findViewById(R.id.swipeRefresh)
         swipeRefresh.setColorSchemeColors(
             android.graphics.Color.parseColor("#6366F1")
@@ -125,8 +129,7 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     private fun setupWebView() {
         // 防止加载过程中白屏：设置 WebView 背景与 overlay 一致
-        webView.setBackgroundColor(android.graphics.Color.WHITE)
-        webView.setBackgroundColor(android.graphics.Color.WHITE)
+        webView.setBackgroundColor(android.graphics.Color.parseColor("#e3f4fd"))
         webView.settings.apply {
             javaScriptEnabled                = true
             domStorageEnabled                = true
@@ -171,7 +174,7 @@ class MainActivity : AppCompatActivity() {
                 handler.removeCallbacks(delayHideRunnable)
                 // 用 JS 检测页面真正渲染完成（两帧后），再隐藏 overlay
                 // 超时兜底：1200ms 强制隐藏
-                handler.postDelayed(delayHideRunnable, 1200)
+                if (!coverFirstLoad) handler.postDelayed(delayHideRunnable, 1200)
                 view.evaluateJavascript("""
                     (function(){
                         function done(){
@@ -201,6 +204,7 @@ class MainActivity : AppCompatActivity() {
             override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
                 if (request.isForMainFrame) {
                     swipeRefresh.isRefreshing = false
+                    coverFirstLoad = false
                     handler.removeCallbacks(delayHideRunnable)
                     hideOverlay()
                     view.loadData(errorHtml(), "text/html", "UTF-8")
@@ -217,6 +221,7 @@ class MainActivity : AppCompatActivity() {
             override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, errorResponse: android.webkit.WebResourceResponse) {
                 if (request.isForMainFrame && (errorResponse.statusCode >= 400)) {
                     swipeRefresh.isRefreshing = false
+                    coverFirstLoad = false
                     handler.removeCallbacks(delayHideRunnable)
                     hideOverlay()
                     view.loadData(errorHtml(), "text/html", "UTF-8")
@@ -335,6 +340,7 @@ class MainActivity : AppCompatActivity() {
             fun onPageReady() {
                 // JS 确认页面两帧后真正渲染完成，取消超时兜底并立即隐藏 overlay
                 handler.post {
+                    coverFirstLoad = false
                     handler.removeCallbacks(delayHideRunnable)
                     hideOverlay()
                 }
@@ -406,7 +412,23 @@ class MainActivity : AppCompatActivity() {
         overlayVisible = true
         overlay.animate().cancel()
         // 壳自带的白遮罩与顶部进度条一律不显示，加载过程交给网页自己的动画
-        overlay.visibility = View.GONE
+        if (coverFirstLoad) {
+            overlay.animate().cancel()
+            overlay.alpha = 1f
+            overlay.visibility = View.VISIBLE
+            overlayLogo.animate().cancel()
+            overlayLogo.alpha = 0f
+            overlayLogo.scaleX = 0.72f
+            overlayLogo.scaleY = 0.72f
+            overlayLogo.rotation = -30f
+            overlayLogo.animate()
+                .alpha(1f).scaleX(1f).scaleY(1f).rotation(0f)
+                .setDuration(560)
+                .setInterpolator(android.view.animation.DecelerateInterpolator())
+                .start()
+        } else {
+            overlay.visibility = View.GONE
+        }
         progressBar.visibility = View.GONE
         // spinner.start()  // 已隐藏壳自带的转圈，避免与网页加载动画抢帧
         dotsIndex = 0

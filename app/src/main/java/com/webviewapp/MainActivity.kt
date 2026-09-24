@@ -355,6 +355,16 @@ class MainActivity : AppCompatActivity() {
             fun openBatterySettings() {
                 handler.post { Battery.prompt(this@MainActivity) }
             }
+
+            // ===== 保活开关：网页设置项可开/关后台保活 =====
+            @JavascriptInterface
+            fun setKeepAlive(enabled: Boolean) {
+                handler.post { KeepAlive.setEnabled(this@MainActivity, enabled) }
+            }
+
+            // 查询当前保活开关状态，供网页初始化时同步
+            @JavascriptInterface
+            fun isKeepAliveEnabled(): Boolean = KeepAlive.isEnabled(this@MainActivity)
         }, "_pakrBridge")
         // UA：移动版 Chrome（无 wv 标识），上传时临时切桌面UA
         webView.settings.userAgentString = MOBILE_UA

@@ -59,8 +59,10 @@ object AppState {
             override fun onActivityStarted(activity: Activity) {
                 startedCount++
                 foreground = true
-                KeepAlive.start(activity)
-                Battery.promptOnce(activity)
+                if (KeepAlive.isEnabled(activity)) {
+                    KeepAlive.start(activity)
+                    Battery.promptOnce(activity)
+                }
             }
 
             override fun onActivityStopped(activity: Activity) {
@@ -82,6 +84,33 @@ object AppState {
 
 /** 前台服务的启动入口，任何异常都吞掉——保活失败也绝不能拖垮主流程 */
 object KeepAlive {
+    private const val PREFS = "pakr_keepalive"
+    private const val KEY_ENABLED = "keepalive_enabled"
+
+    /** 保活开关，默认开（保持原有基座行为），网页设置里可关 */
+    fun isEnabled(ctx: Context): Boolean = try {
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_ENABLED, true)
+    } catch (_: Throwable) {
+        true
+    }
+
+    /** 网页设置项调用：写偏好并立刻生效 */
+    fun setEnabled(ctx: Context, on: Boolean) {
+        try {
+            ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+                .putBoolean(KEY_ENABLED, on).apply()
+        } catch (_: Throwable) {
+        }
+        if (on) start(ctx) else stop(ctx)
+    }
+
+    fun stop(ctx: Context) {
+        try {
+            ctx.stopService(Intent(ctx, KeepAliveService::class.java))
+        } catch (_: Throwable) {
+        }
+    }
+
     fun start(ctx: Context) {
         try {
             val i = Intent(ctx, KeepAliveService::class.java)

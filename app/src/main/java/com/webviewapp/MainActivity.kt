@@ -358,40 +358,16 @@ class MainActivity : AppCompatActivity() {
         }, "_pakrBridge")
         // UA：移动版 Chrome（无 wv 标识），上传时临时切桌面UA
         webView.settings.userAgentString = MOBILE_UA
-        // 实时控制：WebView 不在顶部时禁用下拉刷新，防止滚动误触和打断 CF 验证
-        // 防误触：只有页面静止在顶部时才启用下拉刷新
-        var lastScrollY = 0
-        var isTouching = false
-        webView.setOnScrollChangeListener { _, _, scrollY, _, _ ->
-            lastScrollY = scrollY
-            if (!isTouching) {
-                // 手指不在屏幕上时（fling 中），页面不在顶部就禁用
-                if (scrollY > 0) swipeRefresh.isEnabled = false
-            }
-        }
-        webView.setOnTouchListener { _, event ->
-            when (event.action) {
-                android.view.MotionEvent.ACTION_DOWN -> {
-                    isTouching = true
-                    // 手指按下时根据当前位置决定是否启用
-                    swipeRefresh.isEnabled = (lastScrollY == 0)
-                }
-                android.view.MotionEvent.ACTION_MOVE -> {
-                    // 滑动过程中不在顶部就立即禁用
-                    if (lastScrollY > 0) swipeRefresh.isEnabled = false
-                }
-                android.view.MotionEvent.ACTION_UP,
-                android.view.MotionEvent.ACTION_CANCEL -> {
-                    isTouching = false
-                    // 手指抬起后延迟 300ms 再判断（等 fling 惯性结束）
-                    swipeRefresh.isEnabled = false
-                    handler.postDelayed({
-                        swipeRefresh.isEnabled = (lastScrollY == 0)
-                    }, 300)
-                }
-            }
-            false
-        }
+        // 【手势流畅度修复】网页是固定布局（内部自己滚动），WebView 自身 scrollY 恒为 0，
+        // 于是 SwipeRefreshLayout 一直处于启用状态：手指每移动一次它都要向 WebView 询问
+        // “能不能往上滚”（代价很高的调用），并且手势只要带一点向下成分就会被它整段抢走，
+        // 表现就是滑动卡顿、像断触。这里直接关掉下拉刷新。
+        swipeRefresh.isEnabled = false
+        // 去掉过度滚动（回弹/光晕）带来的额外合成开销
+        webView.overScrollMode = View.OVER_SCROLL_NEVER
+        // 明确走硬件加速合成
+        webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+
         webView.loadUrl(APP_URL)
     }
 
@@ -423,7 +399,7 @@ class MainActivity : AppCompatActivity() {
         overlay.visibility = View.VISIBLE
         progressBar.visibility = View.VISIBLE
         progressBar.setProgress(0)
-        spinner.start()
+        // spinner.start()  // 已隐藏壳自带的转圈，避免与网页加载动画抢帧
         dotsIndex = 0
         handler.removeCallbacks(dotsRunnable)
         handler.post(dotsRunnable)
@@ -482,7 +458,7 @@ class MainActivity : AppCompatActivity() {
         handler.removeCallbacks(dotsRunnable)
         overlayVisible = false
         overlay.animate().cancel()
-        overlay.animate().alpha(0f).setDuration(300).withEndAction {
+        overlay.animate().alpha(0f).setDuration(150).withEndAction {
             // 守卫：动画期间如果 showOverlay 再次被触发，不强制隐藏
             if (!overlayVisible) {
                 overlay.visibility = View.GONE

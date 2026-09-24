@@ -5,14 +5,4 @@
     android:orientation="vertical"
     android:gravity="center"
     android:background="#0d2035">
-
-    <ImageView
-        android:id="@+id/splashLogo"
-        android:layout_width="148dp"
-        android:layout_height="148dp"
-        android:src="@drawable/snowflake"
-        android:contentDescription="@string/app_name"
-        android:alpha="0"
-        android:scaleType="fitCenter" />
-
 </LinearLayout>

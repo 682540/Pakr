@@ -82,6 +82,17 @@ class MainActivity : AppCompatActivity() {
         controller.systemBarsBehavior =
             WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         setContentView(R.layout.activity_main)
+        // 申请通知权限（Android 13+），否则后台消息通知会被系统静默丢弃
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= 33) {
+                if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                    != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    requestPermissions(
+                        arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1001
+                    )
+                }
+            }
+        } catch (_: Throwable) {}
         webView     = findViewById(R.id.webView)
         progressBar = findViewById(R.id.progressBar)
         overlay     = findViewById(R.id.overlay)
@@ -328,6 +339,22 @@ class MainActivity : AppCompatActivity() {
                     hideOverlay()
                 }
             }
+
+            // ===== 保活增强：网页在后台收到消息时弹系统通知 =====
+            @JavascriptInterface
+            fun pushNotice(title: String, body: String) {
+                Postman.push(this@MainActivity.applicationContext, title, body)
+            }
+
+            // 网页可据此决定：就地显示提示条，还是让 App 弹系统通知
+            @JavascriptInterface
+            fun isForeground(): Boolean = AppState.foreground
+
+            // 网页设置项里可主动调用，引导关闭电池优化
+            @JavascriptInterface
+            fun openBatterySettings() {
+                handler.post { Battery.prompt(this@MainActivity) }
+            }
         }, "_pakrBridge")
         // UA：移动版 Chrome（无 wv 标识），上传时临时切桌面UA
         webView.settings.userAgentString = MOBILE_UA
@@ -506,8 +533,10 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
-        webView.onPause()           // 暂停 JS 执行，省电
-        webView.pauseTimers()
+        // ===== 保活增强：不再暂停 WebView =====
+        // 原实现调用 pauseTimers()，它会全局冻结所有 WebView 的 JS 定时器，
+        // 导致 App 一进后台页面就"死掉"，消息回调与通知全部失效。
+        // 保活的前提是后台继续跑，所以这里只保留 Cookie 持久化。
         CookieManager.getInstance().flush()
     }
 

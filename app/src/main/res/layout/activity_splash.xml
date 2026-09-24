@@ -28,7 +28,8 @@
             android:text="正在加载"
             android:textSize="13sp"
             android:textColor="#AAAAAA"
-            android:letterSpacing="0.06" />
+            android:letterSpacing="0.06"
+            android:visibility="gone" />
 
         <ProgressBar
             style="?android:attr/progressBarStyleSmall"
@@ -36,7 +37,8 @@
             android:layout_height="14dp"
             android:layout_marginStart="8dp"
             android:indeterminate="true"
-            android:indeterminateTint="#AAAAAA" />
+            android:indeterminateTint="#AAAAAA"
+            android:visibility="gone" />
 
     </LinearLayout>
 

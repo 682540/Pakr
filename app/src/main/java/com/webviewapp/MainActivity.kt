@@ -395,14 +395,12 @@ class MainActivity : AppCompatActivity() {
         if (overlayVisible) return
         overlayVisible = true
         overlay.animate().cancel()
-        overlay.alpha = 1f
-        overlay.visibility = View.VISIBLE
-        progressBar.visibility = View.VISIBLE
-        progressBar.setProgress(0)
+        // 壳自带的白遮罩与顶部进度条一律不显示，加载过程交给网页自己的动画
+        overlay.visibility = View.GONE
+        progressBar.visibility = View.GONE
         // spinner.start()  // 已隐藏壳自带的转圈，避免与网页加载动画抢帧
         dotsIndex = 0
         handler.removeCallbacks(dotsRunnable)
-        handler.post(dotsRunnable)
         handler.removeCallbacks(timeoutRunnable)
         handler.postDelayed(timeoutRunnable, 30_000L)
     }

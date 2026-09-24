@@ -4,14 +4,15 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:gravity="center"
-    android:background="#e3f4fd">
+    android:background="#0d2035">
 
     <ImageView
         android:id="@+id/splashLogo"
-        android:layout_width="112dp"
-        android:layout_height="112dp"
-        android:src="@mipmap/ic_launcher"
+        android:layout_width="148dp"
+        android:layout_height="148dp"
+        android:src="@drawable/snowflake"
         android:contentDescription="@string/app_name"
+        android:alpha="0"
         android:scaleType="fitCenter" />
 
 </LinearLayout>

@@ -3,43 +3,15 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:gravity="center_horizontal"
-    android:paddingTop="160dp"
+    android:gravity="center"
     android:background="#e3f4fd">
 
     <ImageView
         android:id="@+id/splashLogo"
-        android:layout_width="96dp"
-        android:layout_height="96dp"
+        android:layout_width="112dp"
+        android:layout_height="112dp"
         android:src="@mipmap/ic_launcher"
         android:contentDescription="@string/app_name"
         android:scaleType="fitCenter" />
-
-    <LinearLayout
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
-        android:orientation="horizontal"
-        android:gravity="center_vertical">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="正在加载"
-            android:textSize="13sp"
-            android:textColor="#AAAAAA"
-            android:letterSpacing="0.06"
-            android:visibility="gone" />
-
-        <ProgressBar
-            style="?android:attr/progressBarStyleSmall"
-            android:layout_width="14dp"
-            android:layout_height="14dp"
-            android:layout_marginStart="8dp"
-            android:indeterminate="true"
-            android:indeterminateTint="#AAAAAA"
-            android:visibility="gone" />
-
-    </LinearLayout>
 
 </LinearLayout>

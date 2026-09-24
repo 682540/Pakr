@@ -14,6 +14,12 @@
         android:layout_width="match_parent" android:layout_height="match_parent"
         android:visibility="gone"
         android:background="#e3f4fd">
+        <ImageView
+            android:id="@+id/overlayLogo"
+            android:layout_width="112dp" android:layout_height="112dp"
+            android:layout_gravity="center"
+            android:src="@mipmap/ic_launcher"
+            android:scaleType="fitCenter" />
         <LinearLayout
             android:layout_width="wrap_content" android:layout_height="wrap_content"
             android:layout_gravity="center" android:orientation="vertical"

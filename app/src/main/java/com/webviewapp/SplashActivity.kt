@@ -22,15 +22,13 @@ class SplashActivity : AppCompatActivity() {
 
         val logo = findViewById<ImageView>(R.id.splashLogo)
         logo.alpha = 0f
-        logo.scaleX = 0.72f
-        logo.scaleY = 0.72f
-        logo.rotation = -30f
+        logo.scaleX = 0.86f
+        logo.scaleY = 0.86f
         logo.animate()
             .alpha(1f)
             .scaleX(1f)
             .scaleY(1f)
-            .rotation(0f)
-            .setDuration(560)
+            .setDuration(620)
             .setInterpolator(DecelerateInterpolator())
             .start()
 

@@ -5,7 +5,7 @@
     android:orientation="vertical"
     android:gravity="center_horizontal"
     android:paddingTop="160dp"
-    android:background="@android:color/white">
+    android:background="#e3f4fd">
 
     <ImageView
         android:id="@+id/splashLogo"

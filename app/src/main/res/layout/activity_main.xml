@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent" android:layout_height="match_parent"
-    android:background="#e3f4fd">
+    android:background="#0d2035">
     <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
         android:id="@+id/swipeRefresh"
         android:layout_width="match_parent"
@@ -13,12 +13,12 @@
     <FrameLayout android:id="@+id/overlay"
         android:layout_width="match_parent" android:layout_height="match_parent"
         android:visibility="gone"
-        android:background="#e3f4fd">
+        android:background="#0d2035">
         <ImageView
             android:id="@+id/overlayLogo"
-            android:layout_width="112dp" android:layout_height="112dp"
+            android:layout_width="132dp" android:layout_height="132dp"
             android:layout_gravity="center"
-            android:src="@mipmap/ic_launcher"
+            android:src="@drawable/snowflake"
             android:scaleType="fitCenter" />
         <LinearLayout
             android:layout_width="wrap_content" android:layout_height="wrap_content"
@@ -30,7 +30,7 @@
             <TextView android:id="@+id/loadingText"
                 android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:layout_marginTop="14dp" android:text="加载中"
-                android:textColor="#000000" android:textSize="13sp"
+                android:textColor="#cfe3f7" android:textSize="13sp"
                 android:fontFamily="sans-serif"
                 android:visibility="gone" />
         </LinearLayout>

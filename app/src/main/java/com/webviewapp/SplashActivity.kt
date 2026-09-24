@@ -1,16 +1,17 @@
 package com.webviewapp
+
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.view.animation.DecelerateInterpolator
-import android.widget.ImageView
 import androidx.appcompat.app.AppCompatActivity
+
 @SuppressLint("CustomSplashScreen")
 class SplashActivity : AppCompatActivity() {
     private val handler = Handler(Looper.getMainLooper())
     private var launchRunnable: Runnable? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         @Suppress("DEPRECATION")
@@ -19,18 +20,6 @@ class SplashActivity : AppCompatActivity() {
             android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN
         )
         setContentView(R.layout.activity_splash)
-
-        val logo = findViewById<ImageView>(R.id.splashLogo)
-        logo.alpha = 0f
-        logo.scaleX = 0.86f
-        logo.scaleY = 0.86f
-        logo.animate()
-            .alpha(1f)
-            .scaleX(1f)
-            .scaleY(1f)
-            .setDuration(620)
-            .setInterpolator(DecelerateInterpolator())
-            .start()
 
         val prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
         val agreed = prefs.getBoolean("disc_agreed", false)
@@ -44,9 +33,10 @@ class SplashActivity : AppCompatActivity() {
                 finish()
             }
         }
-        handler.postDelayed(launchRunnable!!, 800)
+        handler.postDelayed(launchRunnable!!, 120)
     }
-override fun onDestroy() {
+
+    override fun onDestroy() {
         launchRunnable?.let { handler.removeCallbacks(it) }
         super.onDestroy()
     }

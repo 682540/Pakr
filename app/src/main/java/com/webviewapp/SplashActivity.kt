@@ -36,7 +36,7 @@ class SplashActivity : AppCompatActivity() {
                 finish()
             }
         }
-        handler.postDelayed(launchRunnable!!, 800)
+        handler.postDelayed(launchRunnable!!, 400)
     }
 
     override fun onDestroy() {

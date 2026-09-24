@@ -150,7 +150,7 @@ jobs:
             [ -z "$ABI" ] && continue
             OUT="/tmp/signed/${SAFE}_${VER}_${ABI}.apk"
             $ANDROID_HOME/build-tools/$BUILD_TOOLS/zipalign -v -p 4 "$APK" /tmp/aligned_${ABI}.apk
-            $ANDROID_HOME/build-tools/$BUILD_TOOLS/apksigner sign               --ks /tmp/release.keystore --ks-pass "pass:$KS_PASS"               --ks-key-alias "$KEY_ALIAS" --key-pass "pass:$KEY_PASS"               --out "$OUT" /tmp/aligned_${ABI}.apk
+            $ANDROID_HOME/build-tools/$BUILD_TOOLS/apksigner sign --ks-type PKCS12 --ks /tmp/release.keystore --ks-pass "pass:$KS_PASS"               --ks-key-alias "$KEY_ALIAS" --key-pass "pass:$KEY_PASS"               --out "$OUT" /tmp/aligned_${ABI}.apk
             $ANDROID_HOME/build-tools/$BUILD_TOOLS/apksigner verify "$OUT"
             echo "Signed: $OUT"
             FOUND=1

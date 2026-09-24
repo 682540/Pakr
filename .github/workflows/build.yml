@@ -33,7 +33,15 @@ jobs:
           cache: gradle
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          SDKMANAGER=$(ls -d $ANDROID_HOME/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -1)
+          echo "sdkmanager=$SDKMANAGER"
+          if [ -n "$SDKMANAGER" ]; then
+            yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+          fi
+          ls "$ANDROID_HOME/build-tools/" 2>/dev/null || true
+          ls "$ANDROID_HOME/platforms/" 2>/dev/null || true
 
       - name: Cache Gradle dependencies
         uses: actions/cache@v4

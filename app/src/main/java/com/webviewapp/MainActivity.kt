@@ -129,7 +129,7 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     private fun setupWebView() {
         // 防止加载过程中白屏：设置 WebView 背景与 overlay 一致
-        webView.setBackgroundColor(android.graphics.Color.parseColor("#e3f4fd"))
+        webView.setBackgroundColor(android.graphics.Color.parseColor("#0d2035"))
         webView.settings.apply {
             javaScriptEnabled                = true
             domStorageEnabled                = true
@@ -420,9 +420,9 @@ class MainActivity : AppCompatActivity() {
             overlayLogo.alpha = 0f
             overlayLogo.scaleX = 0.72f
             overlayLogo.scaleY = 0.72f
-            overlayLogo.rotation = -30f
+            overlayLogo.rotation = 0f
             overlayLogo.animate()
-                .alpha(1f).scaleX(1f).scaleY(1f).rotation(0f)
+                .alpha(1f).scaleX(1f).scaleY(1f)
                 .setDuration(560)
                 .setInterpolator(android.view.animation.DecelerateInterpolator())
                 .start()

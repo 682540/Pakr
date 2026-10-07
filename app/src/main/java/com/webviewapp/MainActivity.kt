@@ -21,7 +21,6 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.ImageView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
@@ -40,11 +39,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var overlay: View
     private lateinit var spinner: IOSSpinnerView
     private lateinit var loadingText: TextView
-    private lateinit var overlayLogo: ImageView
 
     private val handler = Handler(Looper.getMainLooper())
     private var overlayVisible = false
-    private var coverFirstLoad = true
 
     private val dotsFrames = arrayOf("", ".", "..", "...")
     private var dotsIndex = 0
@@ -101,7 +98,6 @@ class MainActivity : AppCompatActivity() {
         overlay     = findViewById(R.id.overlay)
         spinner     = findViewById(R.id.spinner)
         loadingText = findViewById(R.id.loadingText)
-        overlayLogo = findViewById(R.id.overlayLogo)
         swipeRefresh = findViewById(R.id.swipeRefresh)
         swipeRefresh.setColorSchemeColors(
             android.graphics.Color.parseColor("#6366F1")
@@ -129,7 +125,8 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     private fun setupWebView() {
         // 防止加载过程中白屏：设置 WebView 背景与 overlay 一致
-        webView.setBackgroundColor(android.graphics.Color.parseColor("#0d2035"))
+        webView.setBackgroundColor(android.graphics.Color.WHITE)
+        webView.setBackgroundColor(android.graphics.Color.WHITE)
         webView.settings.apply {
             javaScriptEnabled                = true
             domStorageEnabled                = true
@@ -174,7 +171,7 @@ class MainActivity : AppCompatActivity() {
                 handler.removeCallbacks(delayHideRunnable)
                 // 用 JS 检测页面真正渲染完成（两帧后），再隐藏 overlay
                 // 超时兜底：1200ms 强制隐藏
-                if (!coverFirstLoad) handler.postDelayed(delayHideRunnable, 1200)
+                handler.postDelayed(delayHideRunnable, 1200)
                 view.evaluateJavascript("""
                     (function(){
                         function done(){
@@ -204,7 +201,6 @@ class MainActivity : AppCompatActivity() {
             override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
                 if (request.isForMainFrame) {
                     swipeRefresh.isRefreshing = false
-                    coverFirstLoad = false
                     handler.removeCallbacks(delayHideRunnable)
                     hideOverlay()
                     view.loadData(errorHtml(), "text/html", "UTF-8")
@@ -221,7 +217,6 @@ class MainActivity : AppCompatActivity() {
             override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, errorResponse: android.webkit.WebResourceResponse) {
                 if (request.isForMainFrame && (errorResponse.statusCode >= 400)) {
                     swipeRefresh.isRefreshing = false
-                    coverFirstLoad = false
                     handler.removeCallbacks(delayHideRunnable)
                     hideOverlay()
                     view.loadData(errorHtml(), "text/html", "UTF-8")
@@ -283,7 +278,18 @@ class MainActivity : AppCompatActivity() {
                         putExtra(android.provider.MediaStore.EXTRA_OUTPUT, cameraImageUri)
                         addFlags(android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
                     }
-                    val fileIntent = fileChooserParams.createIntent()
+                    // 修复：不要用 fileChooserParams.createIntent()。
+                    // 网页的 accept 若写成扩展名列表（.json,.txt,…），会被它塞进
+                    // EXTRA_MIME_TYPES；系统文件选择器解析不了这种"伪 MIME"，
+                    // 表现就是"框能弹出来、但里面空白 / 点不动"。
+                    // 这里固定用 */*，能不能选交给网页自己判断。
+                    val fileIntent = android.content.Intent(android.content.Intent.ACTION_GET_CONTENT).apply {
+                        addCategory(android.content.Intent.CATEGORY_OPENABLE)
+                        type = "*/*"
+                        if (fileChooserParams.mode == WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE) {
+                            putExtra(android.content.Intent.EXTRA_ALLOW_MULTIPLE, true)
+                        }
+                    }
                     val chooser = android.content.Intent.createChooser(fileIntent, "选择图片").apply {
                         putExtra(android.content.Intent.EXTRA_INITIAL_INTENTS, arrayOf(cameraIntent))
                     }
@@ -296,6 +302,34 @@ class MainActivity : AppCompatActivity() {
             }
         }
         webView.setDownloadListener { url, userAgent, contentDisposition, mimetype, _ ->
+            // ===== 关键修复 =====
+            // DownloadManager 只认 http/https。网页里的"下载/保存"用的是
+            // <a download href="blob:...">（或 data:），丢给 DownloadManager 会直接抛异常，
+            // 再走 ACTION_VIEW 也打不开 blob:，结果就是点了没反应。
+            // 这里把内容 fetch 成 base64，交给 _pakrBridge.saveFile 真正落盘。
+            if (url.startsWith("blob:") || url.startsWith("data:")) {
+                val guess = android.webkit.URLUtil.guessFileName(url, contentDisposition, mimetype)
+                val finalName =
+                    if (guess.isNullOrBlank() || guess == "downloadfile.bin")
+                        "pakr_${System.currentTimeMillis()}"
+                    else guess
+                val js = """(function(){
+                    try{
+                        var u = ${org.json.JSONObject.quote(url)};
+                        var nm = ${org.json.JSONObject.quote(finalName)};
+                        fetch(u).then(function(r){return r.blob();}).then(function(b){
+                            var fr = new FileReader();
+                            fr.onload = function(){
+                                try{ _pakrBridge.saveFile(nm, b.type || '', String(fr.result)); }catch(e){}
+                            };
+                            fr.readAsDataURL(b);
+                        }).catch(function(){});
+                    }catch(e){}
+                })();"""
+                webView.evaluateJavascript(js, null)
+                android.widget.Toast.makeText(this, "正在保存 $finalName", android.widget.Toast.LENGTH_SHORT).show()
+                return@setDownloadListener
+            }
             try {
                 val uri = Uri.parse(url)
                 val filename = android.webkit.URLUtil.guessFileName(url, contentDisposition, mimetype)
@@ -340,7 +374,6 @@ class MainActivity : AppCompatActivity() {
             fun onPageReady() {
                 // JS 确认页面两帧后真正渲染完成，取消超时兜底并立即隐藏 overlay
                 handler.post {
-                    coverFirstLoad = false
                     handler.removeCallbacks(delayHideRunnable)
                     hideOverlay()
                 }
@@ -362,15 +395,71 @@ class MainActivity : AppCompatActivity() {
                 handler.post { Battery.prompt(this@MainActivity) }
             }
 
-            // ===== 保活开关：网页设置项可开/关后台保活 =====
+            /**
+             * ===== 文件保存桥 =====
+             * 网页把 blob / dataURL 转成 base64 传进来，原生负责真正写到相册或下载目录。
+             * 手机 WebView 没法把 blob: 交给 DownloadManager（它只认 http/https），
+             * 所以页面上的"下载 / 保存"在壳里必须走这条通路。
+             * 返回 "OK|<落地位置>"，失败返回 "ERR|<原因>"。
+             */
             @JavascriptInterface
-            fun setKeepAlive(enabled: Boolean) {
-                handler.post { KeepAlive.setEnabled(this@MainActivity, enabled) }
+            fun saveFile(name: String?, mime: String?, base64: String?): String {
+                return try {
+                    val b64 = (base64 ?: "").substringAfter(",").trim()
+                    if (b64.isEmpty()) "ERR|empty data"
+                    else {
+                        val bytes = android.util.Base64.decode(b64, android.util.Base64.DEFAULT)
+                        val mt = if (mime.isNullOrBlank()) "application/octet-stream" else mime
+                        val isImg = mt.startsWith("image/")
+                        var fileName =
+                            if (name.isNullOrBlank()) "pakr_${System.currentTimeMillis()}" else name
+                        fileName = fileName.replace(Regex("[\\\\/:*?\"<>|]"), "_")
+                        if (fileName.length > 120) {
+                            val dot = fileName.lastIndexOf('.')
+                            fileName = if (dot > 0) fileName.substring(0, 100) + fileName.substring(dot)
+                                       else fileName.substring(0, 100)
+                        }
+                        val folder = "小凛机"
+                        if (android.os.Build.VERSION.SDK_INT >= 29) {
+                            val values = android.content.ContentValues()
+                            values.put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                            values.put(android.provider.MediaStore.MediaColumns.MIME_TYPE, mt)
+                            values.put(
+                                android.provider.MediaStore.MediaColumns.RELATIVE_PATH,
+                                (if (isImg) Environment.DIRECTORY_PICTURES else Environment.DIRECTORY_DOWNLOADS) + "/" + folder
+                            )
+                            values.put(android.provider.MediaStore.MediaColumns.IS_PENDING, 1)
+                            val collection = if (isImg)
+                                android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+                            else
+                                android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI
+                            val uri = contentResolver.insert(collection, values)
+                                ?: return "ERR|insert failed"
+                            contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
+                            values.clear()
+                            values.put(android.provider.MediaStore.MediaColumns.IS_PENDING, 0)
+                            contentResolver.update(uri, values, null, null)
+                            "OK|" + (if (isImg) "相册 > Pictures/" else "文件管理 > 下载/") + folder + "/" + fileName
+                        } else {
+                            val dir = java.io.File(
+                                Environment.getExternalStoragePublicDirectory(
+                                    if (isImg) Environment.DIRECTORY_PICTURES else Environment.DIRECTORY_DOWNLOADS
+                                ),
+                                folder
+                            )
+                            dir.mkdirs()
+                            val out = java.io.File(dir, fileName)
+                            java.io.FileOutputStream(out).use { it.write(bytes) }
+                            android.media.MediaScannerConnection.scanFile(
+                                this@MainActivity, arrayOf(out.absolutePath), null, null
+                            )
+                            "OK|" + out.absolutePath
+                        }
+                    }
+                } catch (t: Throwable) {
+                    "ERR|" + (t.message ?: t.javaClass.simpleName)
+                }
             }
-
-            // 查询当前保活开关状态，供网页初始化时同步
-            @JavascriptInterface
-            fun isKeepAliveEnabled(): Boolean = KeepAlive.isEnabled(this@MainActivity)
         }, "_pakrBridge")
         // UA：移动版 Chrome（无 wv 标识），上传时临时切桌面UA
         webView.settings.userAgentString = MOBILE_UA
@@ -412,23 +501,7 @@ class MainActivity : AppCompatActivity() {
         overlayVisible = true
         overlay.animate().cancel()
         // 壳自带的白遮罩与顶部进度条一律不显示，加载过程交给网页自己的动画
-        if (coverFirstLoad) {
-            overlay.animate().cancel()
-            overlay.alpha = 1f
-            overlay.visibility = View.VISIBLE
-            overlayLogo.animate().cancel()
-            overlayLogo.alpha = 0f
-            overlayLogo.scaleX = 0.72f
-            overlayLogo.scaleY = 0.72f
-            overlayLogo.rotation = 0f
-            overlayLogo.animate()
-                .alpha(1f).scaleX(1f).scaleY(1f)
-                .setDuration(560)
-                .setInterpolator(android.view.animation.DecelerateInterpolator())
-                .start()
-        } else {
-            overlay.visibility = View.GONE
-        }
+        overlay.visibility = View.GONE
         progressBar.visibility = View.GONE
         // spinner.start()  // 已隐藏壳自带的转圈，避免与网页加载动画抢帧
         dotsIndex = 0

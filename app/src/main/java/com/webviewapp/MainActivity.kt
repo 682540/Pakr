@@ -461,6 +461,63 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }, "_pakrBridge")
+        // ===== 原生持久化存储桥（__xjStore）=====
+        // 网页数据不再只依赖 WebView 的 localStorage：后者会随“清理缓存/清除数据”一起没，
+        // 且有单源容量上限。这里改为落到 App 私有目录 filesDir/xjstore，容量随手机存储走。
+        webView.addJavascriptInterface(object {
+            private val base: java.io.File
+                get() {
+                    val d = java.io.File(this@MainActivity.filesDir, "xjstore")
+                    if (!d.exists()) d.mkdirs()
+                    return d
+                }
+            private val cache = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+            // key -> 安全文件名（含特殊字符/过长时退化为 MD5）
+            private fun name(k: String): String {
+                val e = try { java.net.URLEncoder.encode(k, "UTF-8") } catch (t: Throwable) { k }
+                if (e.length <= 160) return e
+                return try {
+                    val md = java.security.MessageDigest.getInstance("MD5")
+                    val b = md.digest(k.toByteArray(Charsets.UTF_8))
+                    val sb = StringBuilder("h_")
+                    for (x in b) sb.append("%02x".format(x.toInt() and 0xff))
+                    sb.toString()
+                } catch (t: Throwable) { "k_" + Math.abs(k.hashCode()).toString() }
+            }
+
+            @JavascriptInterface
+            fun get(key: String?): String? {
+                if (key == null || key.isEmpty()) return null
+                val c = cache[key]
+                if (c != null) return c
+                return try {
+                    val f = java.io.File(base, name(key))
+                    if (!f.exists()) null
+                    else {
+                        val v = f.readText(Charsets.UTF_8)
+                        if (v.length <= 200000) cache[key] = v
+                        v
+                    }
+                } catch (t: Throwable) { null }
+            }
+
+            @JavascriptInterface
+            fun set(key: String?, value: String?) {
+                if (key == null || key.isEmpty()) return
+                val v = value ?: ""
+                if (v.length <= 200000) cache[key] = v else cache.remove(key)
+                try {
+                    val f = java.io.File(base, name(key))
+                    val tmp = java.io.File(base, f.name + ".tmp")
+                    tmp.writeText(v, Charsets.UTF_8)
+                    if (!tmp.renameTo(f)) {
+                        f.delete()
+                        tmp.renameTo(f)
+                    }
+                } catch (t: Throwable) {}
+            }
+        }, "__xjStore")
         // UA：移动版 Chrome（无 wv 标识），上传时临时切桌面UA
         webView.settings.userAgentString = MOBILE_UA
         // 【手势流畅度修复】网页是固定布局（内部自己滚动），WebView 自身 scrollY 恒为 0，

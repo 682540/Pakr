@@ -171,6 +171,7 @@ class KeepAliveService : Service() {
 /** 通知中心：负责渠道、前台通知、消息通知 */
 object Postman {
     const val FGS_ID = 1001
+    const val FGS_FLOAT_ID = 1002
     private const val MSG_ID_BASE = 2001
 
     private const val CHANNEL_ALIVE = "pakr_alive"
@@ -238,6 +239,20 @@ object Postman {
             .setSmallIcon(android.R.drawable.stat_notify_chat)
             .setContentTitle("正在后台运行")
             .setContentText("保持连接，随时接收新消息")
+            .setOngoing(true)
+            .setShowWhen(false)
+            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+        contentIntent(ctx)?.let { b.setContentIntent(it) }
+        return b.build()
+    }
+
+    /** 桌宠悬浮球前台服务的低打扰通知 */
+    fun buildFloat(ctx: Context): Notification {
+        val b = NotificationCompat.Builder(ctx, CHANNEL_ALIVE)
+            .setSmallIcon(android.R.drawable.stat_notify_chat)
+            .setContentTitle("桌宠悬浮球")
+            .setContentText("正在桌面显示小凛机桌宠")
             .setOngoing(true)
             .setShowWhen(false)
             .setPriority(NotificationCompat.PRIORITY_MIN)

@@ -460,6 +460,49 @@ class MainActivity : AppCompatActivity() {
                     "ERR|" + (t.message ?: t.javaClass.simpleName)
                 }
             }
+        // ===== 桌宠悬浮球桥 =====
+        // 网页「美化 → 桌宠」开关调用：开关桌面上的蓝色悬浮球
+        @JavascriptInterface
+        fun isFloatBallEnabled(): Boolean = FloatingBall.isEnabled(this@MainActivity)
+
+        @JavascriptInterface
+        fun hasFloatBallPermission(): Boolean =
+            android.os.Build.VERSION.SDK_INT < 23 ||
+            android.provider.Settings.canDrawOverlays(this@MainActivity)
+
+        @JavascriptInterface
+        fun setFloatBall(on: Boolean) {
+            handler.post {
+                try {
+                    if (!on) {
+                        FloatingBall.setEnabled(this@MainActivity, false)
+                    } else if (android.os.Build.VERSION.SDK_INT >= 23 &&
+                        !android.provider.Settings.canDrawOverlays(this@MainActivity)) {
+                        pendingFloatOn = true
+                        requestOverlayPermissionNow()
+                    } else {
+                        FloatingBall.setEnabled(this@MainActivity, true)
+                    }
+                } catch (_: Throwable) {}
+            }
+        }
+
+        @JavascriptInterface
+        fun requestFloatBallPermission() {
+            handler.post { requestOverlayPermissionNow() }
+        }
+
+        // ===== 保活开关桥（补上网页已有控件缺失的原生对接） =====
+        @JavascriptInterface
+        fun isKeepAliveEnabled(): Boolean = KeepAlive.isEnabled(this@MainActivity)
+
+        @JavascriptInterface
+        fun setKeepAlive(on: Boolean) {
+            handler.post {
+                try { KeepAlive.setEnabled(this@MainActivity, on) } catch (_: Throwable) {}
+            }
+        }
+
         }, "_pakrBridge")
         // ===== 原生持久化存储桥（__xjStore）=====
         // 网页数据不再只依赖 WebView 的 localStorage：后者会随“清理缓存/清除数据”一起没，
@@ -551,6 +594,14 @@ class MainActivity : AppCompatActivity() {
             })();
         """.trimIndent()
         view.evaluateJavascript(js, null)
+    }
+
+    private fun requestOverlayPermissionNow() {
+        try {
+            val i = Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+            i.data = Uri.parse("package:" + packageName)
+            startActivityForResult(i, OVERLAY_REQUEST)
+        } catch (_: Throwable) {}
     }
 
     private fun showOverlay() {
@@ -692,10 +743,20 @@ class MainActivity : AppCompatActivity() {
     }
 
     private var fileChooserCallbackRef: ValueCallback<Array<Uri>>? = null
+    private var pendingFloatOn = false
     private var cameraImageUri: Uri? = null
 
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode == OVERLAY_REQUEST) {
+            if (pendingFloatOn) {
+                pendingFloatOn = false
+                if (android.os.Build.VERSION.SDK_INT < 23 ||
+                    android.provider.Settings.canDrawOverlays(this)) {
+                    try { FloatingBall.setEnabled(this, true) } catch (_: Throwable) {}
+                }
+            }
+        }
         if (requestCode == FILE_CHOOSER_REQUEST) {
             val results: Array<Uri>? = if (resultCode == RESULT_OK) {
                 when {
@@ -738,5 +799,6 @@ class MainActivity : AppCompatActivity() {
         const val MOBILE_UA = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.6422.165 Mobile Safari/537.36"
         const val DESKTOP_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
         private const val FILE_CHOOSER_REQUEST = 1001
+        private const val OVERLAY_REQUEST = 1002
     }
 }

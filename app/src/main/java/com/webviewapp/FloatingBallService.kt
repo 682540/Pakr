@@ -23,9 +23,9 @@ import kotlin.math.abs
  * ================= Pakr 桌宠悬浮球 =================
  *
  * 一个蓝色小圆球，浮在真实桌面（其他应用之上）：
- *   - 单击：把「小凛机」拉回前台
+ *   - 单击：弹出选择菜单（回到小凛机 / 隐藏桌宠），选中后才生效；再次单击可收起
  *   - 按住拖动：可移动到任意位置，松手后记住（默认停屏幕右侧）
- *   - 长按：弹出小菜单（回到小凛机 / 隐藏桌宠）
+ *   - 长按：同样弹出选择菜单
  *
  * 依赖 SYSTEM_ALERT_WINDOW 权限；由网页「美化 → 桌宠」开关控制启停。
  * 为了在 App 退到后台后依然常驻，本服务以前台服务方式运行。
@@ -153,7 +153,8 @@ class FloatingBallService : Service() {
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     ui.removeCallbacks(longPressRunnable)
                     if (!moved && !longPressed) {
-                        bringToFront()
+                        // 单击：弹出/收起选择菜单（不再直接回前台，选中后才生效）
+                        if (menu != null) hideMenu() else showMenu()
                     } else if (moved) {
                         FloatingBall.savePos(this, p.x, p.y)
                     }

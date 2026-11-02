@@ -283,10 +283,38 @@ class MainActivity : AppCompatActivity() {
                     // EXTRA_MIME_TYPES；系统文件选择器解析不了这种"伪 MIME"，
                     // 表现就是"框能弹出来、但里面空白 / 点不动"。
                     // 这里固定用 */*，能不能选交给网页自己判断。
+                    // r51：网页只要图片（accept 全是 image/*）时，直接拉起系统相册（ACTION_PICK），
+                    // 不再走"文件/媒体"文档选择器；其它类型仍用 */* 文件选择器。
+                    val acc = (fileChooserParams.acceptTypes ?: emptyArray()).map { it.trim().lowercase() }.filter { it.isNotEmpty() }
+                    val imageOnly = acc.isNotEmpty() && acc.all { it.startsWith("image/") }
+                    val multi = fileChooserParams.mode == WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE
+                    var launched = false
+                    if (imageOnly) {
+                        try {
+                            val pick = android.content.Intent(
+                                android.content.Intent.ACTION_PICK,
+                                android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+                            ).apply {
+                                type = "image/*"
+                                if (multi) putExtra(android.content.Intent.EXTRA_ALLOW_MULTIPLE, true)
+                            }
+                            // 不用 resolveActivity：Android 11+ 无 <queries> 时它会返回 null
+                            // 相册返回时不能被误判成拍照结果
+                            val savedCam = cameraImageUri
+                            cameraImageUri = null
+                            try {
+                                startActivityForResult(pick, FILE_CHOOSER_REQUEST)
+                                launched = true
+                            } catch (_: android.content.ActivityNotFoundException) {
+                                cameraImageUri = savedCam
+                            }
+                        } catch (_: Exception) { launched = false }
+                    }
+                    if (!launched) {
                     val fileIntent = android.content.Intent(android.content.Intent.ACTION_GET_CONTENT).apply {
                         addCategory(android.content.Intent.CATEGORY_OPENABLE)
                         type = "*/*"
-                        if (fileChooserParams.mode == WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE) {
+                        if (multi) {
                             putExtra(android.content.Intent.EXTRA_ALLOW_MULTIPLE, true)
                         }
                     }
@@ -294,6 +322,7 @@ class MainActivity : AppCompatActivity() {
                         putExtra(android.content.Intent.EXTRA_INITIAL_INTENTS, arrayOf(cameraIntent))
                     }
                     startActivityForResult(chooser, FILE_CHOOSER_REQUEST)
+                    }
                 } catch (e: Exception) {
                     filePathCallback.onReceiveValue(null)
                     fileChooserCallbackRef = null
@@ -831,11 +860,7 @@ class MainActivity : AppCompatActivity() {
         if (requestCode == FILE_CHOOSER_REQUEST) {
             val results: Array<Uri>? = if (resultCode == RESULT_OK) {
                 when {
-                    // 相机拍照：data 为 null 或 data.data 为 null
-                    (data == null || data.data == null) && cameraImageUri != null -> {
-                        arrayOf(cameraImageUri!!)
-                    }
-                    // 多选文件
+                    // 多选文件（放在拍照判断前：相册多选时 data.data 为 null）
                     data?.clipData != null -> {
                         val clip = data.clipData!!
                         Array(clip.itemCount) { i ->
@@ -849,6 +874,10 @@ class MainActivity : AppCompatActivity() {
                         val uri = data.data!!
                         try { contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: Exception) {}
                         arrayOf(uri)
+                    }
+                    // 相机拍照：data 为 null 或 data.data 为 null
+                    cameraImageUri != null -> {
+                        arrayOf(cameraImageUri!!)
                     }
                     else -> null
                 }

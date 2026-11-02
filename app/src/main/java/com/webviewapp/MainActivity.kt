@@ -343,7 +343,11 @@ class MainActivity : AppCompatActivity() {
                     setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename)
                 }
                 val dm = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-                dm.enqueue(req)
+                val dlId = dm.enqueue(req)
+                // [r50-apk] APK 下载完成后自动拉起系统安装器
+                if (filename.endsWith(".apk", true) || mimetype == "application/vnd.android.package-archive") {
+                    pakrWatchApk(dlId)
+                }
                 android.widget.Toast.makeText(this, "开始下载：$filename", android.widget.Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
                 try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (_: Exception) {}
@@ -715,6 +719,10 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         webView.onResume()
         webView.resumeTimers()
+        // [r50-apk] 从“安装未知应用”设置页返回后继续安装
+        pendingApkUri?.let { u ->
+            if (android.os.Build.VERSION.SDK_INT < 26 || packageManager.canRequestPackageInstalls()) pakrLaunchInstall(u)
+        }
         // 切回 App 时不主动操作 overlay，让 WebView 自然恢复
     }
 
@@ -733,6 +741,9 @@ class MainActivity : AppCompatActivity() {
     }
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
+        // [r50-apk]
+        apkDlReceiver?.let { try { unregisterReceiver(it) } catch (_: Exception) {} }
+        apkDlReceiver = null
         // 清理文件选择回调，防止内存泄漏
         fileChooserCallbackRef?.onReceiveValue(null)
         fileChooserCallbackRef = null
@@ -745,6 +756,66 @@ class MainActivity : AppCompatActivity() {
     private var fileChooserCallbackRef: ValueCallback<Array<Uri>>? = null
     private var pendingFloatOn = false
     private var cameraImageUri: Uri? = null
+    // [r50-apk]
+    private var apkDlId: Long = -1L
+    private var apkDlReceiver: android.content.BroadcastReceiver? = null
+    private var pendingApkUri: Uri? = null
+
+    @SuppressLint("UnspecifiedRegisterReceiverFlag")
+    private fun pakrWatchApk(id: Long) {
+        apkDlId = id
+        if (apkDlReceiver != null) return
+        val r = object : android.content.BroadcastReceiver() {
+            override fun onReceive(c: Context?, i: Intent?) {
+                val got = i?.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L) ?: -1L
+                if (got != -1L && got == apkDlId) pakrInstallApk(got)
+            }
+        }
+        val f = android.content.IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= 33) registerReceiver(r, f, Context.RECEIVER_EXPORTED)
+            else registerReceiver(r, f)
+            apkDlReceiver = r
+        } catch (_: Exception) {}
+    }
+
+    private fun pakrInstallApk(id: Long) {
+        try {
+            val dm = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+            var ok = false
+            dm.query(DownloadManager.Query().setFilterById(id))?.use { cur ->
+                if (cur.moveToFirst()) {
+                    val si = cur.getColumnIndex(DownloadManager.COLUMN_STATUS)
+                    ok = si >= 0 && cur.getInt(si) == DownloadManager.STATUS_SUCCESSFUL
+                }
+            }
+            if (!ok) {
+                android.widget.Toast.makeText(this, "安装包下载失败，请重试", android.widget.Toast.LENGTH_SHORT).show()
+                return
+            }
+            val uri = dm.getUriForDownloadedFile(id) ?: return
+            if (android.os.Build.VERSION.SDK_INT >= 26 && !packageManager.canRequestPackageInstalls()) {
+                pendingApkUri = uri
+                android.widget.Toast.makeText(this, "请允许“安装未知应用”，返回后自动继续安装", android.widget.Toast.LENGTH_LONG).show()
+                startActivity(Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
+                return
+            }
+            pakrLaunchInstall(uri)
+        } catch (_: Exception) {}
+    }
+
+    private fun pakrLaunchInstall(uri: Uri) {
+        pendingApkUri = null
+        try {
+            val it = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(it)
+        } catch (_: Exception) {
+            android.widget.Toast.makeText(this, "无法打开安装器，请到下载目录手动安装", android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
 
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {

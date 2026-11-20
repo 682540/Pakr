@@ -41,6 +41,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var loadingText: TextView
 
     private val handler = Handler(Looper.getMainLooper())
+    private var customView: View? = null
+    private var chromeClient: WebChromeClient? = null
+    private var customViewCallback: WebChromeClient.CustomViewCallback? = null
     private var overlayVisible = false
 
     private val dotsFrames = arrayOf("", ".", "..", "...")
@@ -223,7 +226,29 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-        webView.webChromeClient = object : WebChromeClient() {
+        chromeClient = object : WebChromeClient() {
+            // [r82-ld4] 网页播放器全屏：接管 custom view 并横屏
+            override fun onShowCustomView(view: View, callback: CustomViewCallback) {
+                if (customView != null) { callback.onCustomViewHidden(); return }
+                customView = view; customViewCallback = callback
+                val decor = window.decorView as android.widget.FrameLayout
+                decor.addView(view, android.widget.FrameLayout.LayoutParams(-1, -1))
+                view.setBackgroundColor(android.graphics.Color.BLACK)
+                WindowInsetsControllerCompat(window, decor).apply {
+                    hide(WindowInsetsCompat.Type.systemBars())
+                    systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                }
+                requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            }
+            override fun onHideCustomView() {
+                val v = customView ?: return
+                val decor = window.decorView as android.widget.FrameLayout
+                decor.removeView(v)
+                customView = null
+                WindowInsetsControllerCompat(window, decor).show(WindowInsetsCompat.Type.systemBars())
+                requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                customViewCallback?.onCustomViewHidden(); customViewCallback = null
+            }
             override fun onProgressChanged(view: WebView, newProgress: Int) {
                 progressBar.setProgress(newProgress)
                 // 新页面开始加载时（progress 重置为低值）补充触发 showOverlay
@@ -330,6 +355,7 @@ class MainActivity : AppCompatActivity() {
                 return true
             }
         }
+        webView.webChromeClient = chromeClient
         webView.setDownloadListener { url, userAgent, contentDisposition, mimetype, _ ->
             // ===== 关键修复 =====
             // DownloadManager 只认 http/https。网页里的"下载/保存"用的是
@@ -537,6 +563,18 @@ class MainActivity : AppCompatActivity() {
         }
 
         }, "_pakrBridge")
+        // [r82-ld4] 网页请求横竖屏：land / port / auto
+        webView.addJavascriptInterface(object {
+            @JavascriptInterface
+            fun set(mode: String) {
+                runOnUiThread {
+                    requestedOrientation = when (mode) {
+                        "land" -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                        else -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                    }
+                }
+            }
+        }, "OrientBridge")
         // ===== 原生持久化存储桥（__xjStore）=====
         // 网页数据不再只依赖 WebView 的 localStorage：后者会随“清理缓存/清除数据”一起没，
         // 且有单源容量上限。这里改为落到 App 私有目录 filesDir/xjstore，容量随手机存储走。
@@ -730,6 +768,7 @@ class MainActivity : AppCompatActivity() {
     private var backPressedTime = 0L
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
+        if (customView != null) { chromeClient?.onHideCustomView(); return }
         if (webView.canGoBack()) {
             webView.goBack()
         } else {
